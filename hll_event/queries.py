@@ -1,5 +1,7 @@
+from datetime import datetime
+from typing import List
 import httpx
-import models
+from models import Player, VipPlayer, GameState, KillLog
 
 
 async def get_response(api_key: str, rcon_ip: str, query: str):
@@ -16,20 +18,6 @@ async def get_response(api_key: str, rcon_ip: str, query: str):
             return None
 
 
-async def get_post_response(api_key: str, rcon_ip: str, query: str, body: str):
-    url = f"{rcon_ip}/api/{query}"
-    headers = {"Authorization": f"Bearer {api_key}"}
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(url, headers=headers, json=body)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPError as e:
-            print(f"HTTP error while fetching response: {e}")
-            return None
-
-
 async def get_status(api_key: str, rcon_ip: str):
     response = await get_response(api_key, rcon_ip, "get_status")
     if response and response.status_code == 200:
@@ -39,38 +27,23 @@ async def get_status(api_key: str, rcon_ip: str):
         return None
 
 
-async def get_game_state(api_key: str, rcon_ip: str) -> models.GameState:
-    response = await get_response(api_key, rcon_ip, "get_gamestate")
-
-    if response and response.status_code == 200:
-        data = response.json()
-        result = data.get("result", {})
-        return models.GameState(
-            num_allied_players=result.get("num_allied_players", 0),
-            num_axis_players=result.get("num_axis_players", 0),
-            raw_time_remaining=result.get("raw_time_remaining", ""),
-            current_map=result.get("current_map", ""),
-        )
-    else:
-        print("Error fetching game state")
-        return None
-
-
-#
-async def get_player(api_key: str, rcon_ip: str, steam_id_64: str) -> models.Player:
+async def get_player(api_key: str, rcon_ip: str, steam_id_64: str) -> Player:
     response = await get_response(api_key, rcon_ip, f"player?steam_id_64={steam_id_64}")
     data = response.json()
     result = data.get("result", {})
-
-    # Extract relevant information
     name = result.get("names", [{}])[0].get("name", "")
     steam_id_64 = result.get("steam_id_64", "")
-    current_playtime_seconds = result.get("current_playtime_seconds", 0)
-    return models.Player(
+    return Player(
         name=name,
         steam_id_64=steam_id_64,
-        current_playtime_seconds=current_playtime_seconds,
     )
+
+
+async def get_live_game_stats(api_key: str, rcon_ip: str):
+    response = await get_response(api_key, rcon_ip, f"get_live_game_stats")
+    data = response.json()
+    result = data.get("result", {})
+    return result
 
 
 async def message_player(
@@ -86,3 +59,65 @@ async def message_player(
     async with httpx.AsyncClient() as client:
         response = await client.post(url=url, json=body, headers=headers)
         return response
+
+
+async def get_vips(api_key: str, rcon_ip: str) -> List[VipPlayer]:
+    response = await get_response(api_key, rcon_ip, "get_vip_ids")
+    data = response.json()
+    vip_data = data.get("result", [])
+
+    vips = []
+    for vip in vip_data:
+        steam_id_64 = vip.get("steam_id_64", "")
+        name = vip.get("name", "").encode("utf-8", "ignore").decode("unicode_escape")
+        vip_expiration_str = vip.get("vip_expiration", "")
+        vip_expiration = (
+            datetime.fromisoformat(vip_expiration_str) if vip_expiration_str else None
+        )
+
+        player = Player(name=name, steam_id_64=steam_id_64)
+        vip_player = VipPlayer(player=player, expiration_date=vip_expiration)
+        vips.append(vip_player)
+
+    return vips
+
+
+async def get_kill_logs(api_key: str, rcon_ip: str) -> List[KillLog]:
+    url = f"{rcon_ip}/api/get_recent_logs"
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    payload = {
+        "end": 250,
+        "filter_action": [],
+        "filter_player": [],
+        "inclusive_filter": True,
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url=url, headers=headers, json=payload)
+        data = response.json()
+        result = data["result"]
+        logs_data = result["logs"]
+        logs = []
+        for log in logs_data:
+            try:
+                action = log["action"]
+                if action == "KILL":
+                    player = log["player"]
+                    steam_id = log["steam_id_64_1"]
+                    weapon = log["weapon"]
+                    kill_log = KillLog(
+                        action=action,
+                        player=player,
+                        steam_id_64=steam_id,
+                        weapon=weapon,
+                    )
+                    logs.append(kill_log)
+            except UnicodeEncodeError as e:
+                continue
+
+        return logs
+
+
+def check_player_event_status():
+    return None
