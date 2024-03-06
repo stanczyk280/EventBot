@@ -34,9 +34,4 @@ class KillLog(pydantic.BaseModel):
     steam_id_64: str
     weapon: str
 
-player_data = {
-    "name": "Player",
-    "steam_id_64": "2131245215321532",
-    "session_date_first_register": "2022-03-03",
-    "kills": [{"M1 Garand": 10}, {"STG 44": 16}],
-}
+
