@@ -2,20 +2,18 @@ import asyncio
 import datetime
 from dotenv import load_dotenv
 from pathlib import Path
-from data_management import load_player_data, save_player_data
 import os
 from helpers import filter_logs
 from queries import get_kill_logs
 from models import PlayerEvent
-import logging
+import json
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+
 env_path = Path(".") / ".env"
 load_dotenv(dotenv_path=env_path)
 api_key = os.getenv("API_KEY")
 rcon_ip = os.getenv("RCON_IP")
+data_file = "player_data.json"
 
 
 class ApiClient:
@@ -27,7 +25,8 @@ class ApiClient:
         self.player_events = await load_player_data()
 
     async def save_player_data(self):
-        await save_player_data(self.player_events)
+        with open(data_file, "w") as f:
+            json.dump(self.player_events, f)
 
     async def process_logs(self):
         logs = await get_kill_logs(api_key, rcon_ip)
@@ -38,8 +37,8 @@ class ApiClient:
             steam_id_64 = log.steam_id_64
 
             if steam_id_64 not in self.player_events:
-                logging.info("Player added")
                 session_date_first_register = datetime.datetime.now().isoformat()
+
                 self.player_events[steam_id_64] = PlayerEvent(
                     name=log.player,
                     steam_id_64=log.steam_id_64,
@@ -47,8 +46,9 @@ class ApiClient:
                 )
 
             player_event = self.player_events[steam_id_64]
-            logging.info("kill added")
             player_event.add_kill(log.weapon)
+
+        await self.save_player_data()
 
 
 async def main():
@@ -57,7 +57,6 @@ async def main():
 
     while True:
         await client.process_logs()
-        await client.save_player_data()
         await asyncio.sleep(30)
 
 
