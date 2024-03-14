@@ -1,10 +1,17 @@
+import asyncio
+import datetime
 from dotenv import load_dotenv
 from pathlib import Path
+from data_management import load_player_data, save_player_data
 import os
-import asyncio
-import queries
-import utils
+from helpers import filter_logs
+from queries import get_kill_logs
+from models import PlayerEvent
+import logging
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 env_path = Path(".") / ".env"
 load_dotenv(dotenv_path=env_path)
 api_key = os.getenv("API_KEY")
@@ -17,35 +24,41 @@ class ApiClient:
             raise ValueError("API_KEY or RCON_IP must be set.")
 
     async def initialize(self):
-        # await queries.message_player(
-        #     api_key, rcon_ip, "76561198285431746", "elo, test bota"
-        # )
+        self.player_events = await load_player_data()
 
-        # vips = await queries.get_vips(api_key, rcon_ip)
-        # for vip in vips:
-        #     print(vip.player.name.encode("utf-8", "ignore").decode())
+    async def save_player_data(self):
+        await save_player_data(self.player_events)
 
-        # player = await queries.get_player(api_key, rcon_ip, "76561198111479386")
-        # print(player.name)
+    async def process_logs(self):
+        logs = await get_kill_logs(api_key, rcon_ip)
 
-        # data = await queries.get_live_game_stats(api_key, rcon_ip)
+        logs = filter_logs(logs)
 
-        # stats_value = data["stats"]
-        # for stat in stats_value:
-        #     try:
-        #         print(str(stat).encode('utf-8', 'ignore').decode('utf-8'))
-        #     except UnicodeEncodeError as e:
-        #         continue
-        kill_logs = await queries.get_kill_logs(api_key, rcon_ip)
+        for log in logs:
+            steam_id_64 = log.steam_id_64
 
-        for log in kill_logs:
-            print(log)
-            print("================================")
+            if steam_id_64 not in self.player_events:
+                logging.info("Player added")
+                session_date_first_register = datetime.datetime.now().isoformat()
+                self.player_events[steam_id_64] = PlayerEvent(
+                    name=log.player,
+                    steam_id_64=log.steam_id_64,
+                    session_date_first_register=session_date_first_register,
+                )
+
+            player_event = self.player_events[steam_id_64]
+            logging.info("kill added")
+            player_event.add_kill(log.weapon)
 
 
 async def main():
     client = ApiClient()
     await client.initialize()
+
+    while True:
+        await client.process_logs()
+        await client.save_player_data()
+        await asyncio.sleep(30)
 
 
 if __name__ == "__main__":

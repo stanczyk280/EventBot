@@ -22,16 +22,29 @@ class VipPlayer(pydantic.BaseModel):
     expiration_date: datetime | None
 
 
+class WeaponKillCount(pydantic.BaseModel):
+    name: str
+    kills: int = 0
+
+
 class PlayerEvent(pydantic.BaseModel):
     name: str
     steam_id_64: str
     session_date_first_register: str
-    kills: List[dict]
+    kills: List[WeaponKillCount] = []
+
+    def add_kill(self, weapon_name: str):
+        for weapon_kill in self.kills:
+            if weapon_kill.name == weapon_name:
+                weapon_kill.kills += 1
+                break
+        else:
+            self.kills.append(WeaponKillCount(name=weapon_name, kills=1))
+
 
 class KillLog(pydantic.BaseModel):
     action: str
     player: str
     steam_id_64: str
     weapon: str
-
-
+    timestamp_ms: int

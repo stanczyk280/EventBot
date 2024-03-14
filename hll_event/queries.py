@@ -88,7 +88,7 @@ async def get_kill_logs(api_key: str, rcon_ip: str) -> List[KillLog]:
 
     payload = {
         "end": 250,
-        "filter_action": [],
+        "filter_action": ["KILL"],  # Filter only KILL actions
         "filter_player": [],
         "inclusive_filter": True,
     }
@@ -99,24 +99,26 @@ async def get_kill_logs(api_key: str, rcon_ip: str) -> List[KillLog]:
         result = data["result"]
         logs_data = result["logs"]
         logs = []
-        for log in logs_data:
-            try:
-                action = log["action"]
-                if action == "KILL":
-                    player = log["player"]
-                    steam_id = log["steam_id_64_1"]
-                    weapon = log["weapon"]
-                    kill_log = KillLog(
-                        action=action,
-                        player=player,
-                        steam_id_64=steam_id,
-                        weapon=weapon,
-                    )
-                    logs.append(kill_log)
-            except UnicodeEncodeError as e:
-                continue
+        current_timestamp_ms = (
+            datetime.now().timestamp() * 1000
+        )
 
-        return logs
+        for log in logs_data:
+            timestamp_ms = current_timestamp_ms
+            if "timestamp_ms" in log:
+                timestamp_ms = log["timestamp_ms"]
+                
+            kill_log = KillLog(
+                action=log["action"],
+                player=log["player"],
+                steam_id_64=log["steam_id_64_1"],
+                weapon=log["weapon"],
+                timestamp_ms=timestamp_ms,
+            )
+
+            logs.append(kill_log)
+
+    return logs
 
 
 def check_player_event_status():

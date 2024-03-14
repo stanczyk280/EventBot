@@ -1,0 +1,24 @@
+{
+    "76561198124373002": {
+        "name": "NZN | Goghed",
+        "steam_id_64": "76561198124373002",
+        "session_date_first_register": "2024-03-14T15:48:07.788827",
+        "kills": [
+            {
+                "name": "M1903 SPRINGFIELD",
+                "kills": 1
+            }
+        ]
+    },
+    "76561198010748584": {
+        "name": "Bo\u017cydar",
+        "steam_id_64": "76561198010748584",
+        "session_date_first_register": "2024-03-14T15:48:07.788827",
+        "kills": [
+            {
+                "name": "M1A1 THOMPSON",
+                "kills": 1
+            }
+        ]
+    }
+}
